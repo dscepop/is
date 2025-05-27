@@ -1,63 +1,66 @@
-@echo off
-:: ===== KEYCLOAK WINDOWS SETUP SIMULATION =====
-echo [1/6] Installing prerequisites...
-timeout /t 2 >nul
-echo ✓ Java already installed (Java 17.0.8)
-echo ✓ curl already available
-echo.
+#User Management System
+r = {
+    "admin": ["cu", "du", "vu", "ar"],
+    "editor": ["ec", "vu"],
+    "viewer": ["vc"]
+}
 
-echo [2/6] Starting Keycloak server...
-start /B kc.bat start-dev
-timeout /t 5 >nul
-echo ✓ Keycloak running on http://localhost:8080
-echo.
+u = {"admin": {"p": "Admin123", "r": "admin"}}
 
-echo [3/6] Opening Admin Console...
-start "" "http://localhost:8080"
-echo ℹ Please manually:
-echo   1. Login with admin/admin
-echo   2. Create 'DemoRealm' realm
-echo   3. Create 'demo-client' client
-echo   4. Set Redirect URIs to *
-echo   5. Click Save
-timeout /t 10 >nul
-echo ✓ Assuming configuration complete
-echo.
+def vp(p):
+    return len(p) >= 8 and any(c.isupper() for c in p) and any(c.islower() for c in p) and any(c.isdigit() for c in p)
 
-echo [4/6] Getting admin token...
-set ADMIN_TOKEN=$(curl -s -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" ^
- -H "Content-Type: application/x-www-form-urlencoded" ^
- -d "username=admin" ^
- -d "password=admin" ^
- -d "grant_type=password" ^
- -d "client_id=admin-cli" | jq -r ".access_token")
+def cu():
+    n = input("Username: ")
+    if n in u: return print("❌ Exists.")
+    pw = input("Password: ")
+    if not vp(pw): return print("❌ Weak password.")
+    rl = input("Role (admin/editor/viewer): ")
+    if rl not in r: return print("❌ Invalid role.")
+    u[n] = {"p": pw, "r": rl}
+    print(f"✅ User '{n}' created.")
 
-echo Admin Token: %ADMIN_TOKEN%
-timeout /t 2 >nul
-echo.
+def du():
+    n = input("Delete user: ")
+    if n in u: del u[n]; print(f"✅ '{n}' deleted.")
+    else: print("❌ Not found.")
+1
+def ar():
+    n = input("User: ")
+    if n not in u: return print("❌ Not found.")
+    rl = input("New role: ")
+    if rl not in r: return print("❌ Invalid role.")
+    u[n]["r"] = rl
+    print(f"✅ Role updated to '{rl}'.")
 
-echo [5/6] Creating test user...
-curl -X POST "http://localhost:8080/admin/realms/DemoRealm/users" ^
- -H "Authorization: Bearer %ADMIN_TOKEN%" ^
- -H "Content-Type: application/json" ^
- -d "{\"username\":\"winuser\",\"enabled\":true,\"credentials\":[{\"type\":\"password\",\"value\":\"Windows123!\",\"temporary\":false}]}"
-echo ✓ User 'winuser' created
-timeout /t 2 >nul
-echo.
+def vu():
+    print("\n📋 Users:")
+    for k, v in u.items():
+        print(f"- {k}: {v['r']}")
 
-echo [6/6] Testing authentication...
-curl -X POST "http://localhost:8080/realms/DemoRealm/protocol/openid-connect/token" ^
- -H "Content-Type: application/x-www-form-urlencoded" ^
- -d "username=winuser" ^
- -d "password=Windows123!" ^
- -d "grant_type=password" ^
- -d "client_id=demo-client"
+def login():
+    n = input("Username: ")
+    pw = input("Password: ")
+    if n not in u or u[n]["p"] != pw: return print("❌ Invalid login.")
+    print(f"\n🔓 Welcome {n} ({u[n]['r']})")
+    acts = r[u[n]["r"]]
+    while True:
+        print("\nActions:")
+        for i, a in enumerate(acts, 1): print(f"{i}. {a}")
+        print("0. Logout")
+        ch = input("Choice: ")
+        if ch == "0": break
+        elif ch == "1" and "cu" in acts: cu()
+        elif ch == "2" and "du" in acts: du()
+        elif ch == "3" and "vu" in acts: vu()
+        elif ch == "4" and "ar" in acts: ar()
+        elif ch == "1" and "ec" in acts: print("📝 Edited.")
+        elif ch == "1" and "vc" in acts: print("📄 Viewing...")
+        else: print("❌ Not allowed.")
 
-echo.
-echo ✓ Authentication successful!
-echo.
-echo ===== SIMULATION COMPLETE =====
-echo Next steps:
-echo 1. Check http://localhost:8080/admin
-echo 2. Configure additional users/groups
-pause
+while True:
+    print("\n=== Menu ===\n1. Login\n0. Exit")
+    op = input("Option: ")
+    if op == "1": login()
+    elif op == "0": break
+    else: print("❌ Invalid.")
